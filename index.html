@@ -2,85 +2,87 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Dynamic GLB Loader</title>
-  <style> body { margin: 0; overflow: hidden; } </style>
+  <title>3D GLB Viewer with OrbitControls</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: white;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
 </head>
 <body>
-  <button onclick="loadModel('cattle_dog.glb')">모델 1</button>
-  <!-- 모델2 파일이 없으면 버튼 제거하거나 주석 처리 -->
-  <!-- <button onclick="loadModel('model2.glb')">모델 2</button> -->
-  <div id="container"></div>
+  <script type="module">
+    import * as THREE from 'https://esm.run/three';
+    import { GLTFLoader } from 'https://esm.run/three/examples/jsm/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'https://esm.run/three/examples/jsm/controls/OrbitControls.js';
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
 
-  <script>
-    let scene, camera, renderer, loader;
-    let currentModel = null;
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
 
-    init();
-    loadModel('cattle_dog.glb'); // 초기 모델 로드
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-    function init() {
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 1.6, 3);
+    // 조명
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+    directionalLight.position.set(5, 10, 7.5);
+    scene.add(directionalLight);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+    scene.add(ambientLight);
 
-      const light = new THREE.DirectionalLight(0xffffff, 1);
-      light.position.set(0, 10, 10);
-      scene.add(light);
+    // 컨트롤 추가
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 0);
+    controls.update();
 
-      loader = new THREE.GLTFLoader();
+    const loader = new GLTFLoader();
+    let model = null;
 
-      window.addEventListener('resize', onWindowResize, false);
+    loader.load(
+      'cattle_dog.glb',
+      (gltf) => {
+        model = gltf.scene;
+        scene.add(model);
 
-      animate();
-    }
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
 
-    function onWindowResize() {
-      camera.aspect = window.innerWidth/window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function loadModel(url) {
-      // 이전 모델 있으면 씬에서 제거
-      if(currentModel) {
-        scene.remove(currentModel);
-        disposeModel(currentModel);
-        currentModel = null;
+        // 모델 중심 기준으로 카메라 위치 조정
+        camera.position.set(center.x, center.y, size.length() * 2);
+        controls.target.copy(center);
+        controls.update();
+      },
+      undefined,
+      (error) => {
+        console.error('모델 로드 실패:', error);
       }
-
-      loader.load(url, (gltf) => {
-        currentModel = gltf.scene;
-        scene.add(currentModel);
-      }, undefined, (error) => {
-        console.error('모델 로딩 오류:', error);
-      });
-    }
-
-    function disposeModel(model) {
-      model.traverse((child) => {
-        if(child.geometry) child.geometry.dispose();
-        if(child.material) {
-          if(Array.isArray(child.material)) {
-            child.material.forEach(mat => mat.dispose());
-          } else {
-            child.material.dispose();
-          }
-        }
-      });
-    }
+    );
 
     function animate() {
       requestAnimationFrame(animate);
-      if(currentModel) currentModel.rotation.y += 0.01; // 모델 회전
+      controls.update();
       renderer.render(scene, camera);
     }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
   </script>
 </body>
 </html>
